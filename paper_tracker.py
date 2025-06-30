@@ -148,7 +148,6 @@ def get_paper_status(system_dict):
     # Remove duplicate entries that might be found in multiple sections
     return list(set(all_papers))
 
-
 def send_email(data, rows=[], cc=None):
     """Sends an email notification about the status change."""
     message = MIMEMultipart("alternative")
@@ -158,33 +157,143 @@ def send_email(data, rows=[], cc=None):
     if cc:
         message["Cc"] = ", ".join(cc)
 
-    # Find previous statuses for the same paper ID
+    # --- 创建状态历史表格的HTML ---
     logs_text = ""
     previous_logs = sorted([row for row in rows if row[2] == data[2]], key=lambda x: x[0])
+    
     if previous_logs:
-        logs_text = "<table border='1' style='border-collapse: collapse; width:100%;'><tr><th style='padding:5px;'>Date</th><th style='padding:5px;'>Status</th></tr>"
-        for log in previous_logs:
-            logs_text += f"<tr><td style='padding:5px;'>{log[0][:10]}</td><td style='padding:5px;'>{log[1]}</td></tr>"
-        # Add the current status to the history table
-        logs_text += f"<tr><td style='padding:5px;'><b>{data[0][:10]}</b></td><td style='padding:5px;'><b>{data[1]}</b></td></tr></table>"
+        # 移动端友好的历史记录表格样式
+        history_table_style = """
+            border-collapse: collapse; 
+            width: 100%; 
+            max-width: 100%; 
+            margin-top: 15px; 
+            border: 1px solid #ddd;
+            table-layout: auto;
+        """
+        history_th_style = """
+            padding: 8px 4px; 
+            text-align: left; 
+            background-color: #f2f2f2; 
+            border: 1px solid #ddd;
+            font-size: 14px;
+            word-wrap: break-word;
+        """
+        history_td_style = """
+            padding: 8px 4px; 
+            text-align: left; 
+            border: 1px solid #ddd;
+            font-size: 14px;
+            word-wrap: break-word;
+        """
+        
+        logs_text = f"<table style='{history_table_style}'><tr><th style='{history_th_style}'>Date</th><th style='{history_th_style}'>Status</th></tr>"
+        
+        for log in previous_logs[:-1]:
+            logs_text += f"<tr><td style='{history_td_style}'>{log[0][:10]}</td><td style='{history_td_style}'>{log[1]}</td></tr>"
+        
+        latest_log = previous_logs[-1]
+        logs_text += f"<tr><td style='{history_td_style}'><b>{latest_log[0][:10]}</b></td><td style='{history_td_style}'><b>{latest_log[1]}</b></td></tr></table>"
 
+    # --- 创建邮件正文的HTML（移动端友好版本） ---
+    
+    # 修改后的样式，去掉固定宽度，改为响应式设计
+    th_style = """
+        text-align: left; 
+        padding: 8px 12px 8px 8px; 
+        vertical-align: top; 
+        font-weight: bold; 
+        color: #555;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #eee;
+        width: 20%;
+        min-width: 80px;
+        font-size: 14px;
+        word-wrap: break-word;
+    """
+    
+    td_style = """
+        text-align: left; 
+        padding: 8px; 
+        vertical-align: top;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+        word-wrap: break-word;
+        width: 80%;
+    """
+    
+    status_td_style = f"{td_style} color: #dc3545; font-weight: bold;"
+
+    # 使用响应式HTML模板
     html = f"""
     <html>
-    <body>
-        <p>Hi,</p>
-        <p>The status of your paper has been updated in the system.</p>
-        <table border="0" style="border-collapse: collapse; margin-bottom: 20px;">
-        <tr><th style="text-align:left; padding-right:10px;">Time</th><td>{data[0]}</td></tr>
-        <tr><th style="text-align:left; padding-right:10px;">Status</th><td style="color:red; font-weight:bold;">{data[1]}</td></tr>
-        <tr><th style="text-align:left; padding-right:10px;">ID</th><td>{data[2]}</td></tr>
-        <tr><th style="text-align:left; padding-right:10px;">Title</th><td>{data[3]}</td></tr>
-        </table>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            @media only screen and (max-width: 600px) {{
+                .email-container {{ 
+                    padding: 10px !important; 
+                }}
+                .info-table {{ 
+                    font-size: 13px !important; 
+                }}
+                .info-table th {{ 
+                    font-size: 13px !important;
+                    padding: 6px 8px 6px 6px !important;
+                }}
+                .info-table td {{ 
+                    font-size: 13px !important;
+                    padding: 6px !important;
+                }}
+            }}
+        </style>
+    </head>
+    <body style="font-family: Arial, 'Microsoft YaHei', sans-serif; font-size: 14px; color: #333; margin: 0; padding: 0;">
+        <div class="email-container" style="padding: 20px; max-width: 600px;">
+            <p>Hi,</p>
+            <p>The status of your paper has been updated in the system.</p>
+            
+            <table class="info-table" border="0" style="
+                border-collapse: collapse; 
+                margin-bottom: 20px; 
+                width: 100%;
+                max-width: 100%;
+                table-layout: fixed;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                overflow: hidden;
+            ">
+                <tr>
+                    <th style="{th_style}">Time</th>
+                    <td style="{td_style}">{data[0]}</td>
+                </tr>
+                <tr>
+                    <th style="{th_style}">Status</th>
+                    <td style="{status_td_style}">{data[1]}</td>
+                </tr>
+                <tr>
+                    <th style="{th_style}">ID</th>
+                    <td style="{td_style}">{data[2]}</td>
+                </tr>
+                <tr>
+                    <th style="{th_style}">Title</th>
+                    <td style="{td_style}" style="{td_style} word-break: break-word; hyphens: auto;">{data[3]}</td>
+                </tr>
+            </table>
     """
+    
     if logs_text:
-        html += f"<h3>Status History</h3>{logs_text}"
+        html += f"<h3 style='margin-top: 25px; margin-bottom: 10px; font-size: 16px;'>Status History</h3>{logs_text}"
 
-    html += "</body></html>"
-    message.attach(MIMEText(html, "html"))
+    html += """
+            <p style="color: #888; font-size: 12px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+                --<br>Sent by Paper Status Tracker Bot
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+    message.attach(MIMEText(html, "html", "utf-8"))
 
     try:
         print(f"Sending email notification to {RECEIVER_EMAIL}...")
@@ -197,8 +306,7 @@ def send_email(data, rows=[], cc=None):
         print("Email sent successfully!")
     except Exception as e:
         print(f"Error sending email: {e}")
-
-
+        
 def update_csv(data, file_path, cc=None):
     """Writes the new status to the CSV file and triggers email if changed."""
     file_exists = os.path.exists(file_path)
